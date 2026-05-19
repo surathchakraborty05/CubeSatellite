@@ -1,5 +1,23 @@
 🌍 CubeSatellite
 
+
+<p align="center">
+  A futuristic real-time satellite tracking and Earth visualization platform.
+</p>
+
+<p align="center">
+  <a href="https://cube-satellite-cdxb-adbh7kw5e-surathchakraborty05s-projects.vercel.app">
+    <img src="https://img.shields.io/badge/Launch%20Orbital%20Tracker-000000?style=for-the-badge&logo=vercel&logoColor=white" />
+  </a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js" />
+  <img src="https://img.shields.io/badge/TypeScript-Enabled-blue?style=flat-square&logo=typescript" />
+  <img src="https://img.shields.io/badge/Leaflet-Maps-green?style=flat-square&logo=leaflet" />
+  <img src="https://img.shields.io/badge/Status-Live-success?style=flat-square" />
+</p>
+
 A futuristic real-time satellite tracking and Earth visualization platform built with Next.js, interactive maps, orbital mechanics, and live environmental overlays.
 
 6
@@ -129,7 +147,11 @@ Contributions are welcome.
 fork → clone → create branch → commit → push → pull request
 📜 License
 
-Used NASA Apis
+📜 Data Sources
+
+- NASA APIs
+- NORAD TLE Data
+- OpenStreetMap
 
 👨‍💻 Developer
 

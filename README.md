@@ -20,7 +20,7 @@
 
 A futuristic real-time satellite tracking and Earth visualization platform built with Next.js, interactive maps, orbital mechanics, and live environmental overlays.
 
-6
+
 🚀 Features
 🛰 Real-Time Satellite Tracking
 Live orbital telemetry
@@ -73,7 +73,7 @@ Firestore
 🌡 Heatmap View
 🌬 Wind Simulation
 
-7
+
 📂 Project Structure
 app/
  ┣ components/

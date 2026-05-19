@@ -1,5 +1,7 @@
 "use client"
-import { useState, useRef, useEffect } from "react"
+
+export const dynamic = "force-dynamic";
+import { useState, useRef, useEffect, Suspense} from "react"
 import * as satellite from "satellite.js"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -38,7 +40,7 @@ import {
   Sun,
   Moon
 } from "lucide-react"
-import dynamic from "next/dynamic"
+import nextdynamic from "next/dynamic"
 import { motion, AnimatePresence } from "framer-motion"
 const smoothRandom = (current: number, min: number, max: number, maxDelta: number) => {
   const delta = (Math.random() * 2 - 1) * maxDelta; // random change between -maxDelta to +maxDelta
@@ -47,7 +49,7 @@ const smoothRandom = (current: number, min: number, max: number, maxDelta: numbe
   if (next < min) next = min;
   return next;
 };
-const MapComponent = dynamic(() => import("@/components/orbital/Mapcomponent"), {
+const MapComponent = nextdynamic(() => import("@/components/orbital/Mapcomponent"), {
   ssr: false,
 })
 const activeSatellites = []
@@ -257,8 +259,29 @@ const SatelliteLoader = () => {
     </motion.div>
   )
 }
+function useInternetStatus() {
+  const [isOnline, setIsOnline] = useState("Offline");
 
-export default function MapViewerPage({ satelliteData }: { satelliteData?: any }) {
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsOnline(navigator.onLine ? "Online" : "Offline");
+
+      const handleOnline = () => setIsOnline("Online");
+      const handleOffline = () => setIsOnline("Offline");
+
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+
+      return () => {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      };
+    }
+  }, []);
+
+  return isOnline;
+}
+function MapViewerContent({ satelliteData }: { satelliteData?: any }) {
   const { unit } = useDistanceUnit();
   const [isPlaying, setIsPlaying] = useState(true)
   const [isDarkMode, setIsDarkMode] = useState<"light" | "dark" | null>(null);
@@ -281,7 +304,7 @@ export default function MapViewerPage({ satelliteData }: { satelliteData?: any }
   const searchParams = useSearchParams()
   const [hoveredSatellite, setHoveredSatellite] = useState(defaultSatellite)
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const auth = getAuth();
+  const auth = typeof window !== "undefined" ? getAuth() : null;
   const [mapType, setMapType] = useState("default")
   const [searchQuery, setSearchQuery] = useState("")
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -310,23 +333,8 @@ export default function MapViewerPage({ satelliteData }: { satelliteData?: any }
 
     return () => clearInterval(interval);
   }, [isPlaying, speed]);
-  const useinternetstatus = () => {
-    const [isOnline, setIsOnline] = useState<string>("Offline");
-    useEffect(() => {
-      setIsOnline(navigator.onLine ? "Online" : "Offline");
-      const handleOnline = () => setIsOnline("Online");
-      const handleOffline = () => setIsOnline("Offline");
 
-      window.addEventListener("online", handleOnline);
-      window.addEventListener("offline", handleOffline);
-      return () => {
-        window.removeEventListener("online", handleOnline);
-        window.removeEventListener("offline", handleOffline);
-      };
-    }, []);
-    return isOnline;
-  }
-  const isOnline = useinternetstatus();
+  const isOnline = useInternetStatus();
   useEffect(() => {
     const fetchDebris = async () => {
       const data = await getLatestDebris();
@@ -417,6 +425,7 @@ export default function MapViewerPage({ satelliteData }: { satelliteData?: any }
     }
   };
   useEffect(() => {
+    if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
@@ -1035,5 +1044,13 @@ export default function MapViewerPage({ satelliteData }: { satelliteData?: any }
         </div>
       )}
     </div>
+  )
+}
+
+export default function MapViewerPage(props: any) {
+  return (
+    <Suspense fallback={<SatelliteLoader />}>
+      <MapViewerContent {...props} />
+    </Suspense>
   )
 }

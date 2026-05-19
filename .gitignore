@@ -54,6 +54,3 @@ temp/
 *.sqlite
 *.db
 
-# Optional large data folders
-data/
-cache/

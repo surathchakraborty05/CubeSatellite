@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+build/
+
+# Environment variables
+.env
+.env*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel/
+
+# v0 / sandbox files
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.v0-trash/
+.snowflake/
+
+# User config
+next.user-config.*
+
+# IDE files
+.vscode/
+.idea/
+
+# TypeScript
+*.tsbuildinfo
+
+# Cache
+.cache/
+
+# Firebase
+.firebase/
+
+# Temporary files
+tmp/
+temp/
+
+# Satellite/map generated data
+*.sqlite
+*.db
+
+# Optional large data folders
+data/
+cache/

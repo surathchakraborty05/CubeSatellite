@@ -47,7 +47,7 @@ const AuthPage = ({ onLogin }: { onLogin: () => void }) => {
       const result = await signInWithPopup(auth, provider);
 
       console.log("Google User:", result.user);
-      router.push("/");
+      router.push("/dashboard");
 
     } catch (error: any) {
       console.error(error.message);
@@ -60,7 +60,7 @@ const AuthPage = ({ onLogin }: { onLogin: () => void }) => {
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        router.push("/");
+        router.push("/dashboard");
       }
     });
 
@@ -373,7 +373,7 @@ const AuthPage = ({ onLogin }: { onLogin: () => void }) => {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-white/90 hover:text-white"
                   >
-                    {showPassword ? <EyeClosed size={18} /> : <Eye size={18} />}
+                    {showPassword ? <EyeClosed size={18} className="text-black" /> : <Eye size={18} className="text-black" />}
                   </button>
                 </div>
               </div>

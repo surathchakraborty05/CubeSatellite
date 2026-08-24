@@ -33,7 +33,8 @@ interface NavbarProps {
 
 // Restored original labels
 const navItems = [
-  { href: "/", label: "Landing / Dashboard" },
+  { href: "/", label: "Landing" },
+  {href: "/dashboard", label: "Dashboard"},
   { href: "/map-viewer", label: "Live Map Viewer" },
   { href: "/satellite-details", label: "Satellite Details" },
   { href: "/timeline", label: "Orbit Timeline & Playback" },

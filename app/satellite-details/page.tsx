@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 // import HeatmapView from "@/components/orbital/HeatmapView";
 import HeatmapViewWrapper from '@/components/orbital/HeatmapViewWrapper';
+import AuthGuard from "@/components/orbital/Authguard";
 const satellite = {
   name: "Horizon-3R",
   noradId: "47902",
@@ -867,6 +868,7 @@ useEffect(() => {
     return () => clearTimeout(timer)
   }, [])
   return (
+    <AuthGuard>
     <>
       <AnimatePresence>
         {loading && <SatelliteLoader />}
@@ -1214,6 +1216,7 @@ useEffect(() => {
         </div>
       )}
     </>
+    </AuthGuard>
 
   )
 }

@@ -19,6 +19,7 @@ import { useTheme } from "../context/ThemeContext"
 import { useDistanceUnit } from "../context/DistanceUnitContext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import AuthGuard from "@/components/orbital/Authguard";
 import {
   FaUserCircle,
 } from "react-icons/fa";
@@ -559,6 +560,7 @@ function MapViewerContent({ satelliteData }: { satelliteData?: any }) {
     navigator.clipboard.writeText(tleText)
   }
   return (
+    <AuthGuard>
     <div className={cn(finalTheme === "dark" && "dark")}>
       <AnimatePresence>
         {loading && <SatelliteLoader />}
@@ -1044,6 +1046,7 @@ function MapViewerContent({ satelliteData }: { satelliteData?: any }) {
         </div>
       )}
     </div>
+    </AuthGuard>
   )
 }
 

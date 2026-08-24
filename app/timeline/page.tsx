@@ -17,6 +17,7 @@ import {
   Sun,
 } from "lucide-react"
 import dynamic from "next/dynamic"
+import AuthGuard from "@/components/orbital/Authguard";
 
 const MapComponenttimeline = dynamic(
   () => import("@/components/orbital/Mapcomponenttimeline"),
@@ -391,6 +392,7 @@ export default function TimelinePage() {
   };
 
   return (
+    <AuthGuard>
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar user={{ name: "Maya Ortega" }} />
       {toast && (
@@ -804,5 +806,6 @@ export default function TimelinePage() {
       </main>
       <Footer />
     </div>
+    </AuthGuard>
   )
 }

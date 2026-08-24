@@ -10,6 +10,7 @@ import { getAuth, signOut } from "firebase/auth";
 import { doc, getDoc, updateDoc, serverTimestamp , setDoc} from 'firebase/firestore';
 import { app, db } from "@/lib/firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
+import AuthGuard from "@/components/orbital/Authguard";
 
 export default function ProfilePage() {
   const auth = getAuth(app);
@@ -132,6 +133,7 @@ const handleSave = async () => {
   const isDark = theme === 'dark';
 
   return (
+    <AuthGuard>
     <div className={`min-h-screen transition-colors duration-700 ${isDark ? 'bg-zinc-950 text-white' : 'bg-slate-50 text-zinc-900'} px-4 py-24 relative overflow-hidden`}>
       {/* HUD Background Grid */}
       <div className={`absolute inset-0 pointer-events-none opacity-20 ${isDark ? 'invert-0' : 'invert'}`}
@@ -370,5 +372,6 @@ const handleSave = async () => {
         </motion.div>
       </div>
     </div>
+    </AuthGuard>
   );
 }

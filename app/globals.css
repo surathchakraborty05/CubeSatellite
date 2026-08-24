@@ -248,3 +248,67 @@ body::-webkit-scrollbar {
 .shimmer {
   animation: shimmer 1.5s infinite;
 }
+
+@layer utilities {
+  /* Custom sleek dot scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px; /* Thin scrollbar */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent; /* Fully transparent track */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(6, 182, 212, 0.2); /* Transparent dark/cyan tint dot */
+    border-radius: 9999px; /* Rounded pill shape */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(6, 182, 212, 0.4); /* Darker on hover */
+  }
+}
+/* Custom styling for the satellite tooltip window */
+.leaflet-tooltip.satellite-hover-tooltip {
+  background-color: white;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 6px 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Enhances the native Leaflet tip indicator pointing toward the dot */
+.leaflet-tooltip-top.satellite-hover-tooltip::before {
+  border-top-color: white;
+}
+/* Increase hover hitbox area for the SVG elements */
+.satellite-interactive-dot {
+  pointer-events: auto !important;
+  cursor: pointer;
+  /* Adds an invisible 10px buffer around each dot to catch the mouse */
+  stroke-width: 10px !important;
+  stroke: transparent !important;
+}
+
+/* Ensure the layout respects the visual color despite the hover stroke wrapper */
+.satellite-interactive-dot:hover {
+  stroke: rgba(255, 0, 0, 0.2) !important;
+}
+.collision-blink {
+  animation: blink-danger 1s infinite;
+}
+
+@keyframes blink-danger {
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.2;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}

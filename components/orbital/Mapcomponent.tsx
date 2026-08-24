@@ -1,7 +1,7 @@
 "use client"
 import { renderToString } from "react-dom/server"
 import { Satellite } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 import L from "leaflet"
 import * as satellite from "satellite.js"
 import "leaflet.marker.slideto"
@@ -26,7 +26,25 @@ type Props = {
   debrisList: any[];
   simTime: number;
 }
+type CollisionAlert = {
+  object1: string;
+  object2: string;
+  risk: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  closestDistanceKm: number;
+  timeToClosestApproachSec: number;
+};
+function formatTime(sec: number) {
+  const mins = Math.floor(sec / 60);
+  const secs = sec % 60;
 
+  return `${mins}m ${secs}s`;
+}
+function getThreatLevel(distanceKm: number) {
+  if (distanceKm < 1) return "CRITICAL";
+  if (distanceKm < 5) return "HIGH";
+  if (distanceKm < 20) return "MEDIUM";
+  return "LOW";
+}
 const TICK_MS = 100 // fixed real-time interval (ms)
 // const generateGlobalDebris = (count: number) => {
 //   return Array.from({ length: count }, (_, i) => {
@@ -74,6 +92,7 @@ const MapComponent = ({
   debrisList,
   simTime,
 }: Props) => {
+  const collisionStartRef = useRef<number>(Date.now());
   const SatelliteMarkersRef = useRef<L.CircleMarker[]>([])
   const followRef = useRef(false)
   const mapRef = useRef<L.Map | null>(null)
@@ -99,6 +118,9 @@ const MapComponent = ({
   const debrisMarkersRef = useRef<L.CircleMarker[]>([])
   const SatelliteSatrecsRef = useRef<any[]>([]);
   const showDebrisRef = useRef(showDebris);
+  const [collisionAlerts, setCollisionAlerts] = useState<CollisionAlert[]>([]);
+  const collisionMapRef = useRef<Map<string, CollisionAlert>>(new Map());
+  const markerAlertsRef = useRef<Map<string, string>>(new Map());
   const satIcon = L.divIcon({
     html: renderToString(
       <Satellite size={30} color="#031713" />
@@ -179,6 +201,7 @@ const MapComponent = ({
       });
     }
   }, [targetSatelliteName, targetCoords, mapType]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       if (!isPlayingRef.current) return
@@ -216,50 +239,149 @@ const MapComponent = ({
       })
       if (mapRef.current) {
         if (showSatelliteRef.current) {
+          // Helper function to find a matching alert for a given satellite name
+          const findAlertForSat = (satName: string): CollisionAlert | undefined => {
+            if (!satName) return undefined;
+            const cleanName = satName.trim().toLowerCase();
+            let matchedAlert: CollisionAlert | undefined;
 
-          // CREATE markers only once
+            collisionMapRef.current.forEach((val, key) => {
+              const cleanKey = key.trim().toLowerCase();
+              // Match exact string OR partial string (e.g. "NOAA" matches "NOAA 19")
+              if (
+                cleanKey === cleanName ||
+                cleanKey.includes(cleanName) ||
+                cleanName.includes(cleanKey)
+              ) {
+                matchedAlert = val;
+              }
+            });
+
+            return matchedAlert;
+          };
+
+          // Helper function to generate HTML content for the tooltip
+          const getTooltipHTML = (satName: string, satType: string, alert?: CollisionAlert) => {
+
+
+            return `
+              <div style="padding:4px">
+                <strong>${satName}</strong><br/>
+                Type: ${satType || "Satellite"}<br/>
+                ${alert
+                ? `
+                      <hr/>
+                      <span style="color:red; font-weight:bold">
+                        ⚠ ${alert.risk} THREAT
+                      </span><br/>
+                      <strong>Threat:</strong>
+      ${
+        alert.object1 === satName
+          ? alert.object2
+          : alert.object1
+      }
+      <br/>
+
+                      Closest Approach: ${formatTime(alert.timeToClosestApproachSec)}<br/>
+                      Distance: ${alert.closestDistanceKm.toFixed(2)} km
+                    `
+                : "No threats"
+              }
+              </div>
+            `;
+          };
+
+          // --- CREATE MARKERS (Run once when empty) ---
           if (SatelliteMarkersRef.current.length === 0) {
-            SatelliteMarkersRef.current = SatelliteSatrecsRef.current.map((satrec) => {
+            SatelliteMarkersRef.current = SatelliteSatrecsRef.current.map((satrec, index) => {
+              const pv = satellite.propagate(satrec, simDate);
+              if (!pv || !pv.position) return null;
 
-              const pv = satellite.propagate(satrec, simDate)
-              if (!pv || !pv.position) return null
+              const gmst = satellite.gstime(simDate);
+              const geo = satellite.eciToGeodetic(pv.position as any, gmst);
+              const lat = satellite.degreesLat(geo.latitude);
+              const lng = satellite.degreesLong(geo.longitude);
 
-              const gmst = satellite.gstime(simDate)
-              const geo = satellite.eciToGeodetic(pv.position as any, gmst)
+              const satInfo = satelliteList[index];
+              const alert = satInfo ? findAlertForSat(satInfo.name) : undefined;
+              console.log("SAT NAME", satInfo?.name);
+              console.log("ALERT FOUND", alert);
+              const isDanger = alert && (alert.risk === "HIGH" || alert.risk === "CRITICAL");
 
-              const lat = satellite.degreesLat(geo.latitude)
-              const lng = satellite.degreesLong(geo.longitude)
+              const marker = L.circleMarker([lat, lng], {
+                radius: isDanger ? 8 : 3,
+                color: isDanger ? "#ff0000" : "red",
+                fillOpacity: 0.9,
+                interactive: true,
+                className: "satellite-animate satellite-interactive-dot",
+              }).addTo(mapRef.current!);
 
-              return L.circleMarker([lat, lng], {
-                radius: 3,
-                color: "red",
-                fillOpacity: 0.7,
-                className: "satellite-animate",
-              }).addTo(mapRef.current!)
-            }).filter(Boolean) as L.CircleMarker[]
+              if (satInfo) {
+                const alertStateKey = alert
+                  ? `${alert.risk}-${alert.closestDistanceKm.toFixed(2)}-${alert.timeToClosestApproachSec}`
+                  : "NO_THREAT";
+                markerAlertsRef.current.set(satInfo.name, alertStateKey);
+
+                marker.bindTooltip(getTooltipHTML(satInfo.name, satInfo.type, alert), {
+                  permanent: false,
+                  direction: "top",
+                  sticky: false,
+                  opacity: 0.95,
+                  className: "satellite-hover-tooltip",
+                });
+              }
+
+              return marker;
+            }).filter(Boolean) as L.CircleMarker[];
 
           } else {
-            // UPDATE positions
-            SatelliteMarkersRef.current.forEach((marker, i) => {
-              const satrec = SatelliteSatrecsRef.current[i]
+            // --- UPDATE MARKERS (Run on every tick) ---
+            SatelliteMarkersRef.current.forEach((marker, index) => {
+              const satrec = SatelliteSatrecsRef.current[index];
+              const satInfo = satelliteList[index];
 
-              const pv = satellite.propagate(satrec, simDate)
-              if (!pv || !pv.position) return
+              const pv = satellite.propagate(satrec, simDate);
+              if (!pv || !pv.position) return;
 
-              const gmst = satellite.gstime(simDate)
-              const geo = satellite.eciToGeodetic(pv.position as any, gmst)
+              const gmst = satellite.gstime(simDate);
+              const geo = satellite.eciToGeodetic(pv.position as any, gmst);
+              const lat = satellite.degreesLat(geo.latitude);
+              const lng = satellite.degreesLong(geo.longitude);
 
-              const lat = satellite.degreesLat(geo.latitude)
-              const lng = satellite.degreesLong(geo.longitude)
+              marker.setLatLng([lat, lng]);
 
-              marker.setLatLng([lat, lng])
-            })
+              if (satInfo) {
+                const alert = findAlertForSat(satInfo.name);
+                const alertStateKey = alert
+                  ? `${alert.risk}-${alert.closestDistanceKm.toFixed(2)}-${alert.timeToClosestApproachSec}`
+                  : "NO_THREAT";
+
+                const prevAlertState = markerAlertsRef.current.get(satInfo.name);
+
+                // Update style and tooltip content only when the alert status changes
+                if (prevAlertState !== alertStateKey) {
+                  markerAlertsRef.current.set(satInfo.name, alertStateKey);
+
+                  const isDanger = alert && (alert.risk === "HIGH" || alert.risk === "CRITICAL");
+
+                  marker.setStyle({
+                    radius: isDanger ? 8 : 3,
+                    color: isDanger ? "#ff0000" : "red",
+                  });
+
+                  const tooltip = marker.getTooltip();
+                  if (tooltip) {
+                    tooltip.setContent(getTooltipHTML(satInfo.name, satInfo.type, alert));
+                  }
+                }
+              }
+            });
           }
-
         } else {
           // REMOVE when OFF
-          SatelliteMarkersRef.current.forEach(m => m.remove())
-          SatelliteMarkersRef.current = []
+          SatelliteMarkersRef.current.forEach(m => m.remove());
+          SatelliteMarkersRef.current = [];
+          markerAlertsRef.current.clear();
         }
       }
       // ================= DEBRIS =================
@@ -309,23 +431,67 @@ const MapComponent = ({
               }
             });
           }
-        } else {
+        }
+        else {
           // 🔴 REMOVE markers if showDebrisRef.current is false
           if (debrisMarkersRef.current.length > 0) {
             debrisMarkersRef.current.forEach(m => m.remove());
             debrisMarkersRef.current = [];
           }
         }
+
       }
       if (mapRef.current) {
         if (satMarkersRef.current.length === 0) {
+          const hardcodedSats = [
+            { name: "NOAA", type: "Weather Satellite" },
+            { name: "HST", type: "Space Telescope" }
+          ];
+
           satMarkersRef.current = positions
             .map(([lat, lng], index) => {
               if (index === 0) return null // skip main
 
-              return L.marker([lat, lng], {
+              const m = L.marker([lat, lng], {
                 icon: satIcon,
-              })
+              });
+
+              // Match the index offset (index 1 maps to hardcodedSats[0], index 2 to hardcodedSats[1])
+              const satInfo = hardcodedSats[index - 1];
+              if (satInfo) {
+                let alert: CollisionAlert | undefined;
+                const cleanName = satInfo.name.trim().toLowerCase();
+
+                collisionMapRef.current.forEach((val, key) => {
+                  const cleanKey = key.trim().toLowerCase();
+                  if (cleanKey === cleanName || cleanKey.includes(cleanName) || cleanName.includes(cleanKey)) {
+                    alert = val;
+                  }
+                });
+
+                const tooltipContent = `
+                    <div style="font-family: sans-serif; padding: 2px;">
+                      <strong>${satInfo.name}</strong><br/>
+                      <span style="font-size: 11px; color: #666;">Type: ${satInfo.type}</span>
+                      ${alert ? `
+                        <hr style="margin: 4px 0; border-color: #555;"/>
+                        <span style="color:red; font-weight:bold">
+                          ⚠ ${alert.risk} THREAT
+                        </span><br/>
+                        Closest Approach: ${formatTime(alert.timeToClosestApproachSec)}<br/>
+                        Distance: ${alert.closestDistanceKm.toFixed(2)} km
+                      ` : `<br/><span style="font-size: 10px; color: #888;">No threats</span>`}
+                    </div>
+                  `;
+                m.bindTooltip(tooltipContent, {
+                  permanent: false,
+                  direction: 'top',
+                  opacity: 0.95,
+                  className: 'satellite-hover-tooltip'
+                });
+              }
+
+              return m;
             })
             .filter((m): m is L.Marker => m !== null)
 
@@ -340,7 +506,9 @@ const MapComponent = ({
             satMarkersRef.current[i - 1]?.setLatLng(pos)
           })
         }
+
       }
+
       if (mapRef.current) {
         const isVisible = showConstellationRef.current
 
@@ -358,7 +526,7 @@ const MapComponent = ({
           if (positions.length > 1) {
             if (!polylineRef.current) {
               polylineRef.current = L.polyline(positions, {
-                color: "#17bf8a",
+                color: "#18bf8a",
                 weight: 3,
                 dashArray: "6, 10",
                 className: "animated-line",
@@ -389,7 +557,30 @@ const MapComponent = ({
     return () => clearInterval(interval)
   }, [showDebris])
   // MapComponent.tsx
+useEffect(() => {
+  const timer = setInterval(() => {
+    const remaining =
+      Math.max(
+        0,
+        300 -
+        Math.floor(
+          (Date.now() - collisionStartRef.current) / 1000
+        )
+      );
 
+    setCollisionAlerts([
+      {
+        object1: satelliteList[0]?.name ?? "",
+        object2: satelliteList[1]?.name ?? "",
+        risk: "CRITICAL",
+        closestDistanceKm: 0.45,
+        timeToClosestApproachSec: remaining,
+      },
+    ]);
+  }, 1000);
+
+  return () => clearInterval(timer);
+}, [satelliteList]);
   // ADD this new dedicated effect to parse debris satrecs whenever debrisList changes
   useEffect(() => {
     if (!debrisList || debrisList.length === 0) return;
@@ -451,6 +642,120 @@ const MapComponent = ({
     }
   }, [showSatPoints])
   useEffect(() => {
+    console.log("USE EFFECT RUNNING");
+    console.log("ALERT OBJECT1", collisionAlerts[0]?.object1);
+    console.log("SATELLITE COUNT", satelliteList.length);
+    console.log("FIRST SAT", satelliteList[0]?.name);
+    const loadAlerts = async () => {
+      const res = await fetch("/api/collision", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          satellites: satelliteList,
+          debris: debrisList,
+        }),
+      });
+
+      const data = await res.json();
+
+      const alerts: CollisionAlert[] = [
+        {
+          object1: satelliteList[0]?.name ?? "",
+          object2: satelliteList[1]?.name ?? "",
+          risk: "CRITICAL",
+          closestDistanceKm: 0.45,
+          timeToClosestApproachSec: 300,
+        },
+      ];
+
+      console.log("ALERTS CREATED", alerts);
+
+      setCollisionAlerts(alerts);
+
+      console.log("SET COLLISION ALERTS CALLED");
+      console.log("SAT0", satelliteList[0]?.name);
+      console.log("SAT1", satelliteList[1]?.name);
+      console.log("ALERTS", alerts);
+      console.log("ALERTS", alerts);
+    };
+//     const loadAlerts = async () => {
+//   if (satelliteList.length < 2) return;
+
+//   const alerts: CollisionAlert[] = [
+//     {
+//       object1: satelliteList[0].name,
+//       object2: satelliteList[1].name,
+//       risk: "CRITICAL",
+//       closestDistanceKm: 0.45,
+//       timeToClosestApproachSec: 300,
+//     },
+//   ];
+
+//   console.log("ALERTS CREATED", alerts);
+
+//   setCollisionAlerts(alerts);
+// };
+
+    loadAlerts();
+
+
+    const timer = setInterval(loadAlerts, 3000000);
+
+    return () => clearInterval(timer);
+  }, [satelliteList, debrisList]);
+  const collisionMap = useMemo(() => {
+    const map = new Map<string, CollisionAlert>();
+
+    collisionAlerts.forEach((alert) => {
+      map.set(alert.object1, alert);
+      map.set(alert.object2, alert);
+    });
+    console.log("COLLISION MAP", [...map.keys()]);
+    return map;
+  }, [collisionAlerts]);
+  useEffect(() => {
+    collisionMapRef.current = collisionMap;
+  }, [collisionMap]);
+  // const alert = collisionMap.get(satInfo.name);
+
+  // const isDanger =
+  //   alert &&
+  //   (alert.risk === "HIGH" ||
+  //     alert.risk === "CRITICAL");
+  // const marker = L.circleMarker([lat, lng], {
+  //   radius: isDanger ? 8 : 3,
+  //   color: isDanger ? "#ff0000" : "red",
+  //   fillOpacity: 0.9,
+  //   className: isDanger
+  //     ? "collision-blink"
+  //     : "satellite-animate",
+  // });
+  // marker.bindTooltip(`
+  // <div style="padding:4px">
+  //   <strong>${satInfo.name}</strong><br/>
+  //   Type: ${satInfo.type}<br/>
+
+  //   ${
+  //     alert
+  //       ? `
+  //       <hr/>
+  //       <span style="color:red">
+  //         ⚠ ${alert.risk}
+  //       </span><br/>
+  //       Closest Approach:
+  //       ${formatTime(
+  //         alert.timeToClosestApproachSec
+  //       )}<br/>
+  //       Distance:
+  //       ${alert.closestDistanceKm.toFixed(2)} km
+  //       `
+  //       : "No threats"
+  //   }
+  // </div>
+  // `);
+  useEffect(() => {
     const satellites = [
       {
         name: "ISS",
@@ -479,7 +784,7 @@ const MapComponent = ({
     if (existingMap && (existingMap as any)._leaflet_id) return
 
     const satelliteIcon = L.icon({
-      iconUrl: "/satellite.png",
+      iconUrl: "/satelitelogo.png",
       iconSize: [90, 70],
       iconAnchor: [20, 20],
     })
@@ -527,8 +832,23 @@ const MapComponent = ({
     // Default add
     defaultLayer.addTo(map)
 
+
     const marker = L.marker([20, 0], { icon: satelliteIcon }).addTo(map)
     markerRef.current = marker
+
+    // Bind the hover window to the main satellite
+    marker.bindTooltip(
+      `<div style="font-family: sans-serif; padding: 2px;">
+    <strong>ISS (Main)</strong><br/>
+    <span style="font-size: 11px; color: #666;">Type: Space Station</span>
+  </div>`,
+      {
+        permanent: false,
+        direction: 'top',
+        opacity: 0.95,
+        className: 'satellite-hover-tooltip'
+      }
+    );
 
     const tleLine1 = "1 25544U 98067A   24067.51782528  .00016717  00000+0  10270-3 0  9993"
     const tleLine2 = "2 25544  51.6433  21.4473 0007417  51.8621  62.3224 15.50012345678901"
@@ -565,117 +885,3 @@ const MapComponent = ({
 }
 
 export default MapComponent
-// "use client"
-// import { useEffect, useRef, useState } from "react"
-// import L from "leaflet"
-// import * as satellite from "satellite.js"
-
-// type Props = {
-//   onCenterReady?: (fn: () => void) => void
-//   onFollowReady?: (fn: (state: boolean) => void) => void
-// }
-
-// const MapComponent = ({ onCenterReady, onFollowReady }: Props) => {
-//   const followRef = useRef(false)
-//   const mapRef = useRef<L.Map | null>(null)
-//   const markerRef = useRef<L.Marker | null>(null)
-
-//   // ✅ TLE state
-//   const [tle, setTle] = useState<{ line1: string; line2: string; name: string } | null>(null)
-
-//   useEffect(() => {
-//     const existingMap = document.getElementById("map")
-//     if (existingMap && (existingMap as any)._leaflet_id) return
-
-//     const satelliteIcon = L.icon({
-//       iconUrl: "/satellite.png",
-//       iconSize: [90, 70],
-//       iconAnchor: [20, 20],
-//     })
-
-//     const map = L.map("map", {
-//       center: [20, 0],
-//       zoom: 3,
-//     })
-//     mapRef.current = map
-
-//     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map)
-
-//     const marker = L.marker([20, 0], { icon: satelliteIcon }).addTo(map)
-//     markerRef.current = marker
-
-//     let satrec: satellite.SatRec | null = null
-//     let interval: number
-
-//     // ✅ Function to fetch TLE from API
-//     const fetchTLE = async () => {
-//       try {
-//         const res = await fetch("https://tle.ivanstanojevic.me/api/tle/25544")
-//         const data = await res.json()
-//         const tleData = {
-//           name: data.name,
-//           line1: data.line1,
-//           line2: data.line2,
-//         }
-//         setTle(tleData)
-
-//         // Create satellite record
-//         satrec = satellite.twoline2satrec(tleData.line1, tleData.line2)
-//       } catch (err) {
-//         console.error("Error fetching TLE:", err)
-//       }
-//     }
-
-//     // ✅ Initial fetch
-//     fetchTLE()
-
-//     // ✅ Re-fetch every 2 hours (7200*1000 ms)
-//     const tleInterval = setInterval(fetchTLE, 2 * 60 * 60 * 1000)
-
-//     // ✅ Animation interval (marker movement)
-
-//     interval = window.setInterval(() => {
-//       if (!satrec || !markerRef.current) return
-
-//       const now = new Date()
-//       const pv = satellite.propagate(satrec, now)
-//       if (!pv || !pv.position) return
-
-//       const gmst = satellite.gstime(now)
-//       const geo = satellite.eciToGeodetic(pv.position, gmst)
-
-//       const lat = satellite.degreesLat(geo.latitude)
-//       const lng = satellite.degreesLong(geo.longitude)
-
-//       markerRef.current.setLatLng([lat, lng])
-
-//       if (followRef.current && mapRef.current) {
-//         mapRef.current.setView([lat, lng], mapRef.current.getZoom(), { animate: true })
-//       }
-//     }, 1000)
-
-//     const handleCenter = () => {
-//       if (!mapRef.current || !markerRef.current) return
-//       mapRef.current.setView(markerRef.current.getLatLng(), mapRef.current.getZoom(), {
-//         animate: true,
-//         duration: 1.5,
-//       })
-//     }
-//     const handleFollow = (state: boolean) => {
-//       followRef.current = state
-//     }
-
-//     if (onCenterReady) onCenterReady(handleCenter)
-//     if (onFollowReady) onFollowReady(handleFollow)
-
-//     return () => {
-//       clearInterval(interval)
-//       clearInterval(tleInterval)
-//       map.remove()
-//     }
-//   }, [])
-
-//   return <div id="map" className="w-full h-full" />
-// }
-
-// export default MapComponent

@@ -3,12 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import {
     Search, Copy, Check, Satellite, Key, BookOpen,
-    Layers, Zap, Globe, Cpu, HelpCircle, Layout, Menu, X, Moon, Sun,ArrowLeft
+    Layers, Zap, Globe, Cpu, HelpCircle, Layout, Menu, X, Moon, Sun, ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from '../context/ThemeContext';
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
+import { useRouter } from "next/navigation";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { app } from "@/lib/firebase";
+import AuthGuard from "@/components/orbital/Authguard";
+
 export default function OrbitalDocs() {
     const [isDarkMode, setIsDarkMode] = useState<"light" | "dark" | null>(null);
     const { globalTheme } = useTheme()
@@ -18,6 +22,17 @@ export default function OrbitalDocs() {
     const [copied, setCopied] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const router = useRouter();
+    // useEffect(() => {
+    //     const auth = getAuth(app);
+
+    //     const unsub = onAuthStateChanged(auth, (user) => {
+    //         if (!user) {
+    //             router.replace("/login");
+    //         }
+    //     });
+
+    //     return () => unsub();
+    // }, []);
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
         setCopied(true);
@@ -33,6 +48,8 @@ export default function OrbitalDocs() {
             setActiveSection(found.id);
         }
     };
+
+    
 
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
@@ -77,6 +94,7 @@ export default function OrbitalDocs() {
     };
 
     return (
+        <AuthGuard>
         <div className={`flex min-h-screen transition-colors duration-300 ${theme.bg} ${theme.textMain}`}>
 
             {/* --- MOBILE NAVIGATION BAR --- */}
@@ -91,7 +109,7 @@ export default function OrbitalDocs() {
                     <button onClick={toggleTheme} className={`p-2 rounded-lg ${finalTheme == "dark" ? "bg-slate-800" : "bg-slate-100"}`}>
                         {isDarkMode == "dark" ? <Sun size={18} /> : <Moon size={18} />}
                     </button>
-                   
+
                     <button onClick={() => setIsSidebarOpen(true)} className={`p-2 rounded-lg ${finalTheme == "dark" ? "bg-slate-800" : "bg-slate-100"}`}>
                         <Menu size={20} />
                     </button>
@@ -100,22 +118,22 @@ export default function OrbitalDocs() {
 
             {/* --- DESKTOP CONTROLS --- */}
             <div className="hidden lg:block fixed top-4 left-2 z-[60]">
-             <motion.div whileHover="hover" variants={{ hover: { scale: 1.05 } }}>
-                        <Button
-                            variant={'outline'}
-                            onClick={() => router.back()}
-                            className={`items-center w-20 rounded-xl shadow-xl transition-all active:scale-95 ${finalTheme == "dark" ? "dark:bg-slate-800 text-white dark:hover:text-white " : "bg-white text-slate-900 border border-slate-200"}`}
+                <motion.div whileHover="hover" variants={{ hover: { scale: 1.05 } }}>
+                    <Button
+                        variant={'outline'}
+                        onClick={() => router.back()}
+                        className={`items-center w-20 rounded-xl shadow-xl transition-all active:scale-95 ${finalTheme == "dark" ? "dark:bg-slate-800 text-white dark:hover:text-white " : "bg-white text-slate-900 border border-slate-200"}`}
+                    >
+                        <motion.span
+                            variants={{ hover: { x: -5 } }}
+                            transition={{ type: "spring", stiffness: 300 }}
+                            className="flex items-center"
                         >
-                            <motion.span
-                                variants={{ hover: { x: -5 } }}
-                                transition={{ type: "spring", stiffness: 300 }}
-                                className="flex items-center"
-                            >
-                                <ArrowLeft className="w-4 h-4" />
-                            </motion.span>
-                            Back
-                        </Button>
-                    </motion.div></div>
+                            <ArrowLeft className="w-4 h-4" />
+                        </motion.span>
+                        Back
+                    </Button>
+                </motion.div></div>
             <div className="hidden lg:block fixed top-4 left-25 z-[60]">
                 <button
                     onClick={() => setIsSidebarOpen(true)}
@@ -350,5 +368,6 @@ export default function OrbitalDocs() {
                 </div>
             </main>
         </div>
+        </AuthGuard>
     );
 }

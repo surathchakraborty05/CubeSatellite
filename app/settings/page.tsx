@@ -23,7 +23,8 @@ import {
 } from "lucide-react"
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useRouter } from "next/navigation"
+import { useRouter } from "next/navigation";
+import AuthGuard from "@/components/orbital/Authguard";
 
 const testFirebase = async () => {
   await addDoc(collection(db, "test"), {
@@ -33,7 +34,8 @@ const testFirebase = async () => {
 };
 
 const navItems = [
-  { href: "/", label: "Landing / Dashboard" },
+  { href: "/", label: "Landing" },
+  { href: "/dashboard", label: "Landing / Dashboard" },
   { href: "/map-viewer", label: "Live Map Viewer" },
   { href: "/satellite-details", label: "Satellite Details" },
   { href: "/timeline", label: "Orbit Timeline & Playback", active: false },
@@ -401,6 +403,7 @@ export default function SettingsPage() {
   const testFirebase = () => console.log("Firebase Test");
 
   return (
+    <AuthGuard>
     <div className="min-h-screen bg-background flex flex-col transition-colors duration-200">
       <Navbar user={{ name: "ortehp" }} />
       {toast && (
@@ -949,5 +952,6 @@ export default function SettingsPage() {
         </div>
       </footer>
     </div>
+    </AuthGuard>
   );
 }

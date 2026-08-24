@@ -54,3 +54,8 @@ temp/
 *.sqlite
 *.db
 
+collision.exe
+collisionengine.cpp
+libraries/sgp4/
+collision.exe
+collisionengine.cpp
